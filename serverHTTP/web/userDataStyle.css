@@ -1,15 +1,15 @@
-
-body{
-    
+html, body {
+    background-image: url('wallpaper.png');
+    background-size: cover;
     background-repeat: no-repeat;
     background-attachment: fixed;
-    background-size: cover;
+    background-position: center center;
 }
 
 
 .card{
-    width:50rem;
-    height:35rem;
+    width:40rem;
+    height:30rem;
     position: absolute;
     left: 50%;
     translate: -50%;
@@ -70,7 +70,7 @@ body{
     position: relative;
     left: 50%;
     translate: -50%;
-    margin-top: 5%;
+    margin-top: 10%;
     height: 100px;
     width: 100px;
 }
@@ -78,6 +78,7 @@ body{
 .Header h1{
     text-align: center;
     font-family: 'Fredoka One', cursive;
+    transform: translateY(40%);
 }
 
 @media only screen and (max-width: 500px) {

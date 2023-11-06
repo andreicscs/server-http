@@ -1,7 +1,9 @@
-body {
+html, body {
+    background-image: url('wallpaper.png');
+    background-size: cover;
     background-repeat: no-repeat;
     background-attachment: fixed;
-    background-size: cover;
+    background-position: center center;
 }
 
 .card {
@@ -49,29 +51,6 @@ body {
     border-radius: 40px;
 }
 
-@-webkit-keyframes error {
-    0% {
-        background-color: red;
-        transform: rotate(0deg) translate3d(0, 0, 0);
-    }
-    25% {
-        background-color: red;
-        transform: rotate(-3deg) translate3d(4px, 0, 0);
-    }
-    50% {
-        background-color: rgb(255, 77, 77);
-        transform: rotate(3deg) translate3d(-3px, 0, 0);
-    }
-    75% {
-        background-color: rgb(255, 142, 142);
-        transform: rotate(-2deg) translate3d(2px, 0, 0);
-    }
-    100% {
-        background-color: rgba(255, 255, 255, .5);
-        transform: rotate(0deg) translate3d(0, 0, 0);
-    }
-}
-
 @keyframes error {
     0% {
         background-color: red;
@@ -92,24 +71,6 @@ body {
     100% {
         background-color: rgba(255, 255, 255, .5);
         transform: rotate(0deg) translate3d(0, 0, 0);
-    }
-}
-
-@-webkit-keyframes rotate {
-    0% {
-        transform: rotate(-5deg) translate3d(0, 0, 0);
-    }
-    25% {
-        transform: rotate(-3deg) translate3d(4px, 0, 0);
-    }
-    50% {
-        transform: rotate(-6deg) translate3d(-3px, 0, 0);
-    }
-    75% {
-        transform: rotate(-4deg) translate3d(2px, 0, 0);
-    }
-    100% {
-        transform: rotate(-5deg) translate3d(0, 0, 0);
     }
 }
 
@@ -141,7 +102,7 @@ body {
 
 .Link:hover {
     text-decoration: none;
-    color: rgb(95, 0, 173);
+    color: rgb(138, 56, 127);
     font-family: 'Fredoka One', cursive;
 }
 
