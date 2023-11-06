@@ -1,0 +1,16 @@
+﻿  SERVER.cpp
+C:\Users\termi\Desktop\serverHTTP\DATABASE\operazioniDB.cpp(137,15): warning C4244: 'argument': conversion from 'time_t' to 'unsigned int', possible loss of data
+C:\Users\termi\Desktop\serverHTTP\WEB SERVER\SERVER.cpp(237,15): warning C4244: 'argument': conversion from 'SOCKET' to 'int', possible loss of data
+C:\Users\termi\Desktop\serverHTTP\WEB SERVER\SERVER.cpp(241,15): warning C4244: 'argument': conversion from 'SOCKET' to 'int', possible loss of data
+C:\Users\termi\Desktop\serverHTTP\WEB SERVER\SERVER.cpp(248,23): warning C4244: 'argument': conversion from 'SOCKET' to 'int', possible loss of data
+C:\Users\termi\Desktop\serverHTTP\WEB SERVER\SERVER.cpp(253,23): warning C4244: 'argument': conversion from 'SOCKET' to 'int', possible loss of data
+C:\Users\termi\Desktop\serverHTTP\WEB SERVER\SERVER.cpp(260,23): warning C4244: 'argument': conversion from 'SOCKET' to 'int', possible loss of data
+C:\Users\termi\Desktop\serverHTTP\WEB SERVER\SERVER.cpp(267,22): warning C4244: 'argument': conversion from 'SOCKET' to 'int', possible loss of data
+C:\Users\termi\Desktop\serverHTTP\WEB SERVER\SERVER.cpp(222,7): warning C4101: 'header': unreferenced local variable
+C:\Users\termi\Desktop\serverHTTP\WEB SERVER\SERVER.cpp(219,7): warning C4101: 'sendbuf': unreferenced local variable
+C:\Users\termi\Desktop\serverHTTP\WEB SERVER\SERVER.cpp(529,10): warning C4267: 'initializing': conversion from 'size_t' to 'int', possible loss of data
+C:\Users\termi\Desktop\serverHTTP\WEB SERVER\SERVER.cpp(568,25): warning C4267: '=': conversion from 'size_t' to 'int', possible loss of data
+C:\Users\termi\Desktop\serverHTTP\WEB SERVER\SERVER.cpp(572,37): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data
+C:\Users\termi\Desktop\serverHTTP\WEB SERVER\SERVER.cpp(670,35): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data
+C:\Users\termi\Desktop\serverHTTP\WEB SERVER\SERVER.cpp(674,31): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data
+  WEB SERVER.vcxproj -> C:\Users\termi\Desktop\serverHTTP\x64\Debug\WEB SERVER.exe

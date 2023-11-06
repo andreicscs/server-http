@@ -2,8 +2,9 @@
 #define DEFAULT_BUFLEN 5000
 #define WEBPATH "../web"
 #define MAXPATHLENGTH 100
-#include <stdio.h>
-#include <string.h>
+
+#include "../DATABASE/operazioniDB.h"
+
 typedef struct threadArgs {
 	SOCKET clientSocket;
 	sockaddr_in clientAddress;
