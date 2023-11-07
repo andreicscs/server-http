@@ -1,7 +1,7 @@
 ﻿  SERVER.cpp
   Generating code
-  1 of 37 functions ( 2.7%) were compiled, the rest were copied from previous compilation.
+  35 of 37 functions (94.6%) were compiled, the rest were copied from previous compilation.
     0 functions were new in current compilation
-    1 functions had inline decision re-evaluated but remain unchanged
+    0 functions had inline decision re-evaluated but remain unchanged
   Finished generating code
-  WEB SERVER.vcxproj -> C:\Users\termi\Desktop\serverHTTP\x64\Release\WEB SERVER.exe
+  WEB SERVER.vcxproj -> C:\Users\termi\git\server-http\serverHTTP\x64\Release\WEB SERVER.exe

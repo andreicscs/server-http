@@ -1,0 +1,230 @@
+html, body {
+    background-image: url('wallpaper.png');
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+    background-position: center center;
+}
+
+.card {
+    width: 25rem;
+    height: 35rem;
+    position: absolute;
+    left: 50%;
+    translate: -50%;
+    top: 50%;
+    transform: translateY(-50%);
+    border-radius: 20px;
+    background-color: rgba(255, 255, 255, .2);
+    backdrop-filter: blur(14px);
+    border-style: solid;
+    border-color: rgba(189, 224, 254, .2);
+}
+
+.card::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    border-radius: 15px;
+    transform: rotate(-5deg);
+    inset: 0;
+    z-index: -1;
+    background-color: rgba(255, 255, 255, .2);
+    backdrop-filter: blur(30px);
+    border-style: solid;
+    border-color: rgba(189, 224, 254, .3);
+}
+
+.card:hover::before {
+    -webkit-animation: rotate 0.5s ease-in-out both;
+    animation: rotate 0.5s ease-in-out both;
+    -webkit-animation-fill-mode: forwards;
+    animation-fill-mode: forwards;
+}
+
+.incorrect-input {
+    -webkit-animation: error 0.3s ease-in-out both;
+    animation: error 0.3s ease-in-out both;
+    -webkit-animation-fill-mode: forwards;
+    animation-fill-mode: forwards;
+    border-radius: 40px;
+}
+
+@keyframes error {
+    0% {
+        background-color: red;
+        transform: rotate(0deg) translate3d(0, 0, 0);
+    }
+    25% {
+        background-color: red;
+        transform: rotate(-3deg) translate3d(4px, 0, 0);
+    }
+    50% {
+        background-color: rgb(255, 77, 77);
+        transform: rotate(3deg) translate3d(-3px, 0, 0);
+    }
+    75% {
+        background-color: rgb(255, 142, 142);
+        transform: rotate(-2deg) translate3d(2px, 0, 0);
+    }
+    100% {
+        background-color: rgba(255, 255, 255, .5);
+        transform: rotate(0deg) translate3d(0, 0, 0);
+    }
+}
+
+@keyframes rotate {
+    0% {
+        transform: rotate(-5deg) translate3d(0, 0, 0);
+    }
+    25% {
+        transform: rotate(-3deg) translate3d(4px, 0, 0);
+    }
+    50% {
+        transform: rotate(-6deg) translate3d(-3px, 0, 0);
+    }
+    75% {
+        transform: rotate(-4deg) translate3d(2px, 0, 0);
+    }
+    100% {
+        transform: rotate(-5deg) translate3d(0, 0, 0);
+    }
+}
+
+.Link {
+    text-decoration: none;
+    color: black;
+    font-weight: bolder;
+    font-family: 'Open Sans';
+    font-family: 'Fredoka One', cursive;
+}
+
+.Link:hover {
+    text-decoration: none;
+    color: rgb(138, 56, 127);
+    font-family: 'Fredoka One', cursive;
+}
+
+.Logo {
+    position: relative;
+    left: 50%;
+    transform: translateX(-50%);
+    margin-top: 5%;
+    height: 100px;
+    width: 100px;
+}
+
+.Header h1 {
+    text-align: center;
+    font-family: 'Fredoka One', cursive;
+}
+
+.Login-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    align-items: center;
+    margin-top: 3rem;
+}
+
+.Labels {
+    border-width: 0;
+    overflow: hidden;
+    position: absolute;
+    margin-top: 2%;
+    margin-left: 2%;
+}
+
+.Login-form input {
+    padding-left: 2.5rem;
+    border-radius: 40px;
+    border-style: none;
+    background-color: rgba(76, 201, 240, .5);
+    background-color: rgba(255, 255, 255, .5);
+    text-align: left;
+    outline: none;
+    width: 18rem;
+    height: 2.5rem;
+    font-size: 15px;
+    font-family: 'Fredoka One', cursive;
+}
+
+.Login-form input:hover {
+    background-color: rgba(255, 255, 255, 0.65);
+}
+
+.Login-form input:focus {
+    background-color: rgba(255, 255, 255, 1);
+}
+
+.Forgot-password {
+    display: flex;
+}
+
+.Forgot-password a {
+    margin-top: 3%;
+    margin-left: 10%;
+    font-size: 13px;
+}
+
+.Submit {
+    display: flex;
+    flex-direction: column;
+    align-self: center;
+    margin-top: 2%;
+    font-size: 12px;
+    font-family: 'Fredoka One', cursive;
+}
+
+.Submit button {
+    margin-top: 10%;
+    align-self: center;
+    border-style: none;
+    border-radius: 40px;
+    background-color: rgba(0, 0, 0);
+    width: 18rem;
+    height: 2.5rem;
+    color: white;
+    font-size: 20px;
+    font-weight: 100;
+    font-family: 'Fredoka One', cursive;
+}
+
+.Submit button:hover {
+    cursor: pointer;
+    background-color: rgba(40, 40, 40);
+}
+
+.Login {
+    margin-top: 5%;
+    border-style: none;
+    align-items: center;
+    font-family: 'Fredoka One', cursive;
+    text-align: center;
+}
+
+.Register a {
+    font-size: 17px;
+}
+
+.Register p {
+    font-size: 15px;
+    font-family: 'Fredoka One', cursive;
+}
+
+@media only screen and (max-width: 500px) {
+    .card {
+        width: 80%;
+        height: auto;
+        /* altri stili */
+    }
+    .Submit button {
+        width: 50vw;
+        height: 8vw;
+    }
+    .Login-form input {
+        width: 50vw;
+        height: 8vw;
+    }
+}

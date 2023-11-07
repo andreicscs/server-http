@@ -1,0 +1,15 @@
+/=/login/login.html
+/login=/login/login.html
+/loginStyle.css=/login/loginStyle.css
+/login.js=/login/login.js
+/register=/register/register.html
+/registerStyle.css=/register/registerStyle.css
+/register.js=/register/register.js
+/userData=/userData/userData.html
+/userDataStyle.css=/userData/userDataStyle.css
+/userData.js=/userData/userData.js
+/logo.png=/logo.png
+/wallpaper.png=/wallpaper.png
+/favicon.ico=/favicon.png
+
+

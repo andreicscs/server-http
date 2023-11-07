@@ -1,15 +1,10 @@
 /*
-	* da sistemare:
-	
-
-
 	* da implementare:
 	implementare cookies che scadono.
 
-	generalizzare codice, soprattutto implementare tabella associativa url -> file e url->script nella funzione handleconnection().
+	url->script nella funzione handleconnection(), facilmente implementabile non ancora implementata per facilitare il debug durante lo sviluppo.
 	
 	vedere cos'altro implementare.
-
 */
 
 
@@ -232,6 +227,19 @@ DWORD WINAPI handle_connection(LPVOID  lpParam) {
 	char method[10] = {0};//initialize it at 0 so that strcmp won't receive a null string in case of no input
 	char path[100] = {0};
 	scriptResponse response;
+	FILE* routes;
+	fopen_s(&routes,WEBROUTES,"r");
+	if (routes == NULL) {
+		perror("Error opening routes file");
+		return NULL;
+	}
+
+	char curRouteline[100] = {0};
+
+	char* curRoutePath;
+	char* curRouteFile;
+	char* next_token = NULL;
+	int sent = 0;
 
 	// Receive until the peer shuts down the connection
 	while (1) {
@@ -239,15 +247,20 @@ DWORD WINAPI handle_connection(LPVOID  lpParam) {
 		if (iResult > 0) {
 			recvbuf[iResult] = 0;// null terminate the received data. 
 			sscanf_s(recvbuf, "%9s %99s", method, (unsigned int)sizeof(method), path, (unsigned int)sizeof(path));
-
-
 			if (strcmp(method, "GET") == 0) {
-				if (strcmp(path, "/") == 0) {
-					sendFile(clientSocket, "/login.html", "text/html");
-
+				fseek(routes, 0, SEEK_SET);
+				while (fscanf_s(routes, "%s", curRouteline, (unsigned int)sizeof(curRouteline)) == 1) {
+					curRoutePath = strtok_s(curRouteline, "=", &next_token);
+					curRouteFile = strtok_s(NULL, "=", &next_token);
+					if (strcmp(curRoutePath,path)==0) {
+						sendFile(clientSocket, curRouteFile, NULL);
+						sent = 1;
+						break;
+					}
+					
 				}
-				else {
-					sendFile(clientSocket, path, NULL);
+				if (sent == 0) {
+					sendHttpResponse(clientSocket, 404, "Not Found", "text/plain", NULL, "File not found");
 				}
 			}
 			else if (strcmp(method, "POST") == 0) {
@@ -301,6 +314,7 @@ DWORD WINAPI handle_connection(LPVOID  lpParam) {
 		else {
 			printf("recv failed: %d\n", WSAGetLastError());
 			closesocket(clientSocket);
+			fclose(routes);
 
 			return NULL;
 		}
@@ -316,6 +330,7 @@ DWORD WINAPI handle_connection(LPVOID  lpParam) {
 	printf("Connection closed\n");
 	// close the socket
 	closesocket(clientSocket);
+	fclose(routes);
 	return NULL;
 }
 

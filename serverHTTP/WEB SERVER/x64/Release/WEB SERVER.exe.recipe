@@ -2,7 +2,7 @@
 <Project>
   <ProjectOutputs>
     <ProjectOutput>
-      <FullPath>C:\Users\termi\Desktop\serverHTTP\x64\Release\WEB SERVER.exe</FullPath>
+      <FullPath>C:\Users\termi\git\server-http\serverHTTP\x64\Release\WEB SERVER.exe</FullPath>
     </ProjectOutput>
   </ProjectOutputs>
   <ContentFiles />
