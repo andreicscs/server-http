@@ -1,4 +1,0 @@
-﻿  operazioniDB.cpp
-C:\Users\termi\Desktop\serverHTTP\DATABASE\operazioniDB.cpp(195,15): warning C4244: 'argument': conversion from 'time_t' to 'unsigned int', possible loss of data
-MSVCRT.lib(exe_main.obj) : error LNK2001: unresolved external symbol main
-C:\Users\termi\Desktop\serverHTTP\x64\Release\DATABASE.exe : fatal error LNK1120: 1 unresolved externals

@@ -359,7 +359,7 @@ scriptResponse handleRegisterPost(char* input) {
 	username = _strdup(token);
 	username = strtok_s(username, "=", &next_token2);
 	username = strtok_s(NULL, "=", &next_token2);
-	if (username==NULL) {
+	if (username==NULL || strlen(username)>MAX_NAME_LENGTH) {
 		curResponse.status = 400;
 		curResponse.message = "invalid username";
 		return curResponse;
@@ -371,7 +371,7 @@ scriptResponse handleRegisterPost(char* input) {
 	email = _strdup(token);
 	email = strtok_s(email, "=", &next_token2);
 	email = strtok_s(NULL, "=", &next_token2);
-	if (email == NULL) {
+	if (email == NULL || strlen(email) > MAX_EMAIL_LENGTH) {
 		curResponse.status = 400;
 		curResponse.message = "invalid email";
 		return curResponse;
@@ -383,7 +383,7 @@ scriptResponse handleRegisterPost(char* input) {
 	password = _strdup(token);
 	password = strtok_s(password, "=", &next_token2);
 	password = strtok_s(NULL, "=", &next_token2);
-	if (password == NULL) {
+	if (password == NULL || strlen(password) > MAX_PASSWORD_LENGTH) {
 		curResponse.status = 400;
 		curResponse.message = "invalid password";
 		return curResponse;
@@ -434,7 +434,7 @@ scriptResponse handleLoginPost(char* input) {
 	email = _strdup(token);
 	email = strtok_s(email, "=", &next_token2);
 	email = strtok_s(NULL, "=", &next_token2);
-	if (email == NULL) {
+	if (email == NULL || strlen(email) > MAX_EMAIL_LENGTH) {
 		curResponse.status = 400;
 		curResponse.message = "invalid email";
 		return curResponse;
@@ -445,7 +445,7 @@ scriptResponse handleLoginPost(char* input) {
 	password = _strdup(token);
 	password = strtok_s(password, "=", &next_token2);
 	password = strtok_s(NULL, "=", &next_token2);
-	if (password==NULL) {
+	if (password==NULL || strlen(password) > MAX_PASSWORD_LENGTH) {
 		curResponse.status = 400;
 		curResponse.message = "invalid password";
 		return curResponse;
@@ -507,7 +507,7 @@ scriptResponse handleUserDataPost(char* input) {
 		return curResponse;
 	}
 
-	html=readHtmlFileBody("/userData.html");
+	html=readHtmlFileBody("/userData/userData.html");
 	
 	
 	replacePlaceholder(&html,"%USERNAME%",curUser.username);
