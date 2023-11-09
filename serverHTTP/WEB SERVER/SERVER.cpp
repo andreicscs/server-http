@@ -4,6 +4,8 @@
 
 	url->script nella funzione handleconnection(), facilmente implementabile non ancora implementata per facilitare il debug durante lo sviluppo.
 	
+	rendere lettura scrittura su database thread safe
+
 	vedere cos'altro implementare.
 */
 
@@ -24,6 +26,8 @@
 
 
 #pragma comment(lib, "Ws2_32.lib")
+
+HANDLE writeAccess;
 
 
 typedef struct {
@@ -270,12 +274,14 @@ DWORD WINAPI handle_connection(LPVOID  lpParam) {
 					sendHttpResponse(clientSocket, response.status, response.message, "text/plain", response.cookie, response.body);
 					
 				}
+				
 				else if(strcmp(path, "/register") == 0){
 					response = handleRegisterPost(recvbuf);
 					sendHttpResponse(clientSocket, response.status, response.message, "text/plain", response.cookie, response.body);
 					
 					
 				}
+				
 				else if (strcmp(path, "/userData") == 0) {
 					
 					response = handleUserDataPost(recvbuf);
@@ -335,6 +341,11 @@ DWORD WINAPI handle_connection(LPVOID  lpParam) {
 
 scriptResponse handleRegisterPost(char* input) {
 	scriptResponse curResponse;
+	if (input == NULL) {
+		curResponse.status = 400;
+		curResponse.message = "bad request";
+		return curResponse;
+	}
 	char* modifiableInput;
 	modifiableInput = strstr(input, "\r\n\r\n");// get to the end of the http header
 	modifiableInput = &modifiableInput[4];// exclude \r\n\r\n, and take just the body
@@ -381,6 +392,11 @@ scriptResponse handleRegisterPost(char* input) {
 	strcpy_s(newUser.username, username);
 
 	token = strtok_s(NULL, "&", &next_token); // Get the next token
+	if (token == NULL) {
+		curResponse.status = 400;
+		curResponse.message = "invalid input";
+		return curResponse;
+	}
 	// split the string based on the '=' character, to get the value.
 	email = _strdup(token);
 	email = strtok_s(email, "=", &next_token2);
@@ -398,6 +414,11 @@ scriptResponse handleRegisterPost(char* input) {
 	strcpy_s(newUser.email,email);
 
 	token = strtok_s(NULL, "&", &next_token); // Get the next token
+	if (token == NULL) {
+		curResponse.status = 400;
+		curResponse.message = "invalid input";
+		return curResponse;
+	}
 	// split the string based on the '=' character, to get the value.
 	password = _strdup(token);
 	password = strtok_s(password, "=", &next_token2);
@@ -416,10 +437,11 @@ scriptResponse handleRegisterPost(char* input) {
 
 	//	assign a new cookie to the user	
 	generateCookie(newUser.cookie);
-
-	//printf("username: %s, email: %s, password: %s\n", newUser.username, newUser.email, newUser.password);
-	result=indexedInsertRecord(newUser);
 	
+	WaitForSingleObject(writeAccess, INFINITE);// make writing to file thread safe
+	result=indexedInsertRecord(newUser);
+	ReleaseSemaphore(writeAccess, 1, NULL);
+
 	if (result==1) {
 		curResponse.status = 409;
 		curResponse.message = "account already exists";
@@ -427,7 +449,6 @@ scriptResponse handleRegisterPost(char* input) {
 	}
 	
 	// save the cookie to the response struct
-	//curResponse.cookie=_strdup(newUser.cookie); don't give the cookie when he registers but give it when he logs in
 	curResponse.status = 201;
 	curResponse.message = "account created successfully";
 	return curResponse;
@@ -435,6 +456,11 @@ scriptResponse handleRegisterPost(char* input) {
 
 scriptResponse handleLoginPost(char* input) {
 	scriptResponse curResponse;
+	if (input == NULL) {
+		curResponse.status = 400;
+		curResponse.message = "bad request";
+		return curResponse;
+	}
 	char* modifiableInput;
 	modifiableInput = strstr(input, "\r\n\r\n");// get to the end of the http header
 	modifiableInput = &modifiableInput[4];// exclude \r\n\r\n, and take just the body
@@ -474,6 +500,11 @@ scriptResponse handleLoginPost(char* input) {
 	}
 
 	token = strtok_s(NULL, "&", &next_token); // Get the next token
+	if (token == NULL) {
+		curResponse.status = 400;
+		curResponse.message = "invalid input";
+		return curResponse;
+	}
 	// split the string based on the '=' character, to get the value.
 	password = _strdup(token);
 	password = strtok_s(password, "=", &next_token2);
@@ -569,7 +600,7 @@ void replacePlaceholder(char** source, const char* placeholder, const char* repl
 			break;
 		}
 
-		// Calculate the length of the content before the placeholder
+		// Calculate the length of the content before the placeholder 
 		size_t prefixLen = match - sourcePtr;
 
 		// Calculate the length of the content after the placeholder
@@ -651,7 +682,7 @@ void URLDecode(char* str) {
 
 // Function to build and send http responses to the clientSocket.
 void sendHttpResponse(SOCKET clientSocket, const int statusCode, const char* statusMessage, const char* contentType, const char* cookie, const char* content) {
-	char response[1024]; // Adjust the size as needed
+	char response[DEFAULT_BUFLEN]; // Adjust the size as needed
 	int contentLength;
 	if (content==NULL) {
 		contentLength = 0;
