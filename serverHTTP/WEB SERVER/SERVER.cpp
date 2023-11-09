@@ -315,7 +315,6 @@ DWORD WINAPI handle_connection(LPVOID  lpParam) {
 			printf("recv failed: %d\n", WSAGetLastError());
 			closesocket(clientSocket);
 			fclose(routes);
-
 			return NULL;
 		}
 	}
@@ -354,10 +353,25 @@ scriptResponse handleRegisterPost(char* input) {
 
 	// Split the input string based on the '&' character to separete the input.
 	token = strtok_s(modifiableInput, "&", &next_token);
+	if (token == NULL) {
+		curResponse.status = 400;
+		curResponse.message = "invalid input";
+		return curResponse;
+	}
 
 	// split the string based on the '=' character, to get the value.
 	username = _strdup(token);
+	if (username == NULL) {
+		curResponse.status = 400;
+		curResponse.message = "invalid username";
+		return curResponse;
+	}
 	username = strtok_s(username, "=", &next_token2);
+	if (username == NULL) {
+		curResponse.status = 400;
+		curResponse.message = "invalid username";
+		return curResponse;
+	}
 	username = strtok_s(NULL, "=", &next_token2);
 	if (username==NULL || strlen(username)>MAX_NAME_LENGTH) {
 		curResponse.status = 400;
@@ -370,6 +384,11 @@ scriptResponse handleRegisterPost(char* input) {
 	// split the string based on the '=' character, to get the value.
 	email = _strdup(token);
 	email = strtok_s(email, "=", &next_token2);
+	if (email == NULL) {
+		curResponse.status = 400;
+		curResponse.message = "invalid email";
+		return curResponse;
+	}
 	email = strtok_s(NULL, "=", &next_token2);
 	if (email == NULL || strlen(email) > MAX_EMAIL_LENGTH) {
 		curResponse.status = 400;
@@ -382,6 +401,11 @@ scriptResponse handleRegisterPost(char* input) {
 	// split the string based on the '=' character, to get the value.
 	password = _strdup(token);
 	password = strtok_s(password, "=", &next_token2);
+	if (password == NULL) {
+		curResponse.status = 400;
+		curResponse.message = "invalid password";
+		return curResponse;
+	}
 	password = strtok_s(NULL, "=", &next_token2);
 	if (password == NULL || strlen(password) > MAX_PASSWORD_LENGTH) {
 		curResponse.status = 400;
@@ -429,10 +453,19 @@ scriptResponse handleLoginPost(char* input) {
 
 	// Split the input string based on the '&' character to separete the input.
 	token = strtok_s(modifiableInput, "&", &next_token);
-	
+	if (token == NULL) {
+		curResponse.status = 400;
+		curResponse.message = "invalid input";
+		return curResponse;
+	}
 	// split the string based on the '=' character, to get the value.
 	email = _strdup(token);
 	email = strtok_s(email, "=", &next_token2);
+	if (email == NULL) {
+		curResponse.status = 400;
+		curResponse.message = "invalid email";
+		return curResponse;
+	}
 	email = strtok_s(NULL, "=", &next_token2);
 	if (email == NULL || strlen(email) > MAX_EMAIL_LENGTH) {
 		curResponse.status = 400;
@@ -444,6 +477,11 @@ scriptResponse handleLoginPost(char* input) {
 	// split the string based on the '=' character, to get the value.
 	password = _strdup(token);
 	password = strtok_s(password, "=", &next_token2);
+	if (password == NULL) {
+		curResponse.status = 400;
+		curResponse.message = "invalid password";
+		return curResponse;
+	}
 	password = strtok_s(NULL, "=", &next_token2);
 	if (password==NULL || strlen(password) > MAX_PASSWORD_LENGTH) {
 		curResponse.status = 400;
