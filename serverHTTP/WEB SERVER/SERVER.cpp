@@ -2,13 +2,10 @@
 	* da implementare:
 	implementare cookies che scadono.
 
-	url->script nella funzione handleconnection(), facilmente implementabile non ancora implementata per facilitare il debug durante lo sviluppo.
+	tabella url->script nella funzione handleconnection(), facilmente implementabile non ancora implementata per facilitare il debug durante lo sviluppo.
 	
-	rendere lettura scrittura su database thread safe
-
 	vedere cos'altro implementare.
 */
-
 
 //se non definito lo definisce, non fa includere winsocket versione 1.1 a windows.h
 #ifndef WIN32_LEAN_AND_MEAN
@@ -24,11 +21,7 @@
 #include "../server.h"
 #include <string.h>
 
-
 #pragma comment(lib, "Ws2_32.lib")
-
-HANDLE writeAccess;
-
 
 typedef struct {
     int status;       // Status code (0 for success, 1 for failure, etc.)
@@ -36,6 +29,8 @@ typedef struct {
 	char* body;
 	char* cookie;
 }scriptResponse;
+
+FILE* routes;
 
 scriptResponse handleUserDataPost(char* input);
 void replacePlaceholder(char** source, const char* placeholder, const char* replacement);
@@ -49,8 +44,13 @@ void sendFile(SOCKET clientSocket, const char* filePath, const char* contentType
 DWORD WINAPI handle_connection(LPVOID  lpParam);
 
 int main(int argc, char* argv[]) {
+	InitializeLibrary();
+	fopen_s(&routes, WEBROUTES, "r");
+	if (routes == NULL) {
+		perror("Error opening routes file");
+		exit (1);
+	}
 	WSADATA wsaData;
-
 	int iResult;
 
 	// Initialize Winsock
@@ -60,13 +60,11 @@ int main(int argc, char* argv[]) {
 		return 1;
 	}
 
-
-
-
 	/* result: A pointer to a structure of type addrinfo. It will be used to store the results of the address resolution.
 		ptr: Another pointer to addrinfo that is currently set to NULL.
 		hints: An instance of the addrinfo structure, used to provide hints to the 'getaddrinfo' function about the type of socket you want to create.*/
 	struct addrinfo* result = NULL;
+
 	struct addrinfo* ptr = NULL;
 	struct addrinfo hints;
 
@@ -80,12 +78,11 @@ int main(int argc, char* argv[]) {
 	/*
 		This line calls the getaddrinfo function to resolve the local address and port to be used by the server.
 		NULL is used for the first argument, indicating that the function should determine the local address automatically. or (char* localIPAddress = "192.168.1.100") to specify an address
-		DEFAULT_PORT is used as the port number. In this case, it's "27015," which was defined as a macro at the beginning of the code.
+		DEFAULT_PORT is used as the port number. In this case, it's DEFAULT_PORT, which was defined as a macro at the beginning of the code.
 		&hints provides the hints structure to guide the address resolution.
 		&result is where the results will be stored.
 		The result of the getaddrinfo function is stored in iResult. If it's non-zero, it indicates an error, and an error message is printed, followed by cleanup steps.
 	*/
-
 	iResult = getaddrinfo(NULL, DEFAULT_PORT, &hints, &result);
 	if (iResult != 0) {
 		printf("getaddrinfo failed: %d\n", iResult);
@@ -94,14 +91,14 @@ int main(int argc, char* argv[]) {
 	}
 
 	SOCKET ListenSocket = INVALID_SOCKET;
+	/*
+		Create a SOCKET for the server to listen for client connections with the previous result struct fields.
+		result->ai_family: This retrieves the address family (IPv4 or IPv6) from the addrinfo structure
+		result->ai_socktype: This retrieves the socket type (e.g., SOCK_STREAM for TCP or SOCK_DGRAM for UDP) from the addrinfo structure.
+		result->ai_protocol: This retrieves the protocol (e.g., IPPROTO_TCP for TCP or IPPROTO_UDP for UDP) from the addrinfo structure.
+	*/
 
-	// Create a SOCKET for the server to listen for client connections with the previous result struct fields.
-	// result->ai_family: This retrieves the address family (IPv4 or IPv6) from the addrinfo structure
-	// result->ai_socktype: This retrieves the socket type (e.g., SOCK_STREAM for TCP or SOCK_DGRAM for UDP) from the addrinfo structure.
-	// result->ai_protocol: This retrieves the protocol (e.g., IPPROTO_TCP for TCP or IPPROTO_UDP for UDP) from the addrinfo structure.
 	ListenSocket = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
-
-
 	if (ListenSocket == INVALID_SOCKET) {
 		printf("Error at socket(): %ld\n", WSAGetLastError());
 		freeaddrinfo(result);
@@ -127,9 +124,6 @@ int main(int argc, char* argv[]) {
 	}
 	freeaddrinfo(result);
 
-
-
-
 	/*
 		SOMAXCONN: This is a constant that typically represents the maximum length of the queue of pending connections.
 		It's a recommended value to use when calling the listen function. It indicates the maximum number of clients that can be waiting to connect to the server.
@@ -145,8 +139,6 @@ int main(int argc, char* argv[]) {
 		return 1;
 	}
 
-
-
 	// Create a temporary SOCKET object called clientSocket for accepting connections from clients.
 	SOCKET clientSocket;
 	sockaddr_in addr;
@@ -154,9 +146,8 @@ int main(int argc, char* argv[]) {
 	char clientIp[16];
 	clientSocket = INVALID_SOCKET;
 	int clientPort;
-
-
-
+	threadArgs args;
+	HANDLE hThread;
 
 	while (1) {
 		printf("waiting for a connection...\n");
@@ -175,71 +166,57 @@ int main(int argc, char* argv[]) {
 			return 1;
 		}
 
-
-		inet_ntop(AF_INET, &addr.sin_addr, clientIp, sizeof(clientIp));
-		clientPort = ntohs(addr.sin_port);
+		inet_ntop(AF_INET, &addr.sin_addr, clientIp, sizeof(clientIp));// converts the ip into a string
+		clientPort = ntohs(addr.sin_port);// converts the port into an u_short (used as int)
 
 		printf("connection with %s:%d accepted!\n", clientIp, clientPort);
 
-
-		threadArgs args;
 		args.clientSocket = clientSocket;
 		args.clientAddress = addr;
 
-
-		//handle_connection(&clientSocket); //non thread.
-
-		HANDLE hThread;
 		hThread = CreateThread(NULL, 0, handle_connection, &args, 0, NULL);
 
-		if (hThread != NULL) {
-			// Thread creation was successful
-			printf("Thread created successfully! connection established.\n\n");
-		}
-		else {
+		if (hThread == NULL) {
 			// Thread creation failed
 			DWORD error = GetLastError();
 			printf("Thread creation failed with error code: %d\n", error);
 		}
-
 	}
-
 	//cleanup
+	CleanupLibrary();
 	WSACleanup();
+	fclose(routes);
 	return 0;
 }
+
+
 
 
 DWORD WINAPI handle_connection(LPVOID  lpParam) {
 	struct threadArgs* args = (threadArgs*)lpParam;
 	SOCKET clientSocket = (SOCKET)args->clientSocket;
 	sockaddr_in ClientAddress = (sockaddr_in)args->clientAddress;
-
+	int clientPort;
+	char clientIp[16];
+	inet_ntop(AF_INET, &args->clientAddress.sin_addr, clientIp, sizeof(clientIp));
+	clientPort = ntohs(args->clientAddress.sin_port);
 	/*
-	recv stores the received data in the recvbuf buffer, up to a maximum of DEFAULT_BUFLEN bytes.
-	If iResult is greater than 0, it means data has been received successfully. The code then echoes the received data back to the client using the send function.
-	If iSendResult (the result of the send operation) is SOCKET_ERROR, it means sending data back to the client failed.
-	If iResult is 0, it indicates that the client has closed the connection gracefully, so the server prints a message indicating that the connection is closing.
-	If iResult is less than 0, it means an error occurred while receiving data. An error message is printed, the client socket is closed, and the Winsock library is cleaned up.
+		recv stores the received data in the recvbuf buffer, up to a maximum of DEFAULT_BUFLEN bytes.
+		If iResult is greater than 0, it means data has been received successfully. The code then echoes the received data back to the client using the send function.
+		If iSendResult (the result of the send operation) is SOCKET_ERROR, it means sending data back to the client failed.
+		If iResult is 0, it indicates that the client has closed the connection gracefully, so the server prints a message indicating that the connection is closing.
+		If iResult is less than 0, it means an error occurred while receiving data. An error message is printed, the client socket is closed, and the Winsock library is cleaned up.
 	*/
 
 	int iResult;
 	int i = 0;
 	char recvbuf[DEFAULT_BUFLEN];
-	int iSendResult = 0;
 	int recvbuflen = DEFAULT_BUFLEN;
-	char method[10] = {0};//initialize it at 0 so that strcmp won't receive a null string in case of no input
+	int iSendResult = 0;
+	char method[10] = {0};// initialized at 0 so that strcmp won't receive a null string in case of no input
 	char path[100] = {0};
 	scriptResponse response;
-	FILE* routes;
-	fopen_s(&routes,WEBROUTES,"r");
-	if (routes == NULL) {
-		perror("Error opening routes file");
-		return NULL;
-	}
-
 	char curRouteline[100] = {0};
-
 	char* curRoutePath;
 	char* curRouteFile;
 	char* next_token = NULL;
@@ -261,7 +238,6 @@ DWORD WINAPI handle_connection(LPVOID  lpParam) {
 						sent = 1;
 						break;
 					}
-					
 				}
 				if (sent == 0) {
 					sendHttpResponse(clientSocket, 404, "Not Found", "text/plain", NULL, "File not found");
@@ -269,34 +245,22 @@ DWORD WINAPI handle_connection(LPVOID  lpParam) {
 			}
 			else if (strcmp(method, "POST") == 0) {
 				if (strcmp(path, "/login") == 0) {
-					
 					response = handleLoginPost(recvbuf);
 					sendHttpResponse(clientSocket, response.status, response.message, "text/plain", response.cookie, response.body);
-					
 				}
-				
 				else if(strcmp(path, "/register") == 0){
 					response = handleRegisterPost(recvbuf);
-					sendHttpResponse(clientSocket, response.status, response.message, "text/plain", response.cookie, response.body);
-					
-					
+					sendHttpResponse(clientSocket, response.status, response.message, "text/plain", response.cookie, response.body);	
 				}
-				
-				else if (strcmp(path, "/userData") == 0) {
-					
+				else if (strcmp(path, "/userData") == 0) {	
 					response = handleUserDataPost(recvbuf);
 					sendHttpResponse(clientSocket, response.status, response.message, "text/html", response.cookie, response.body);
-
-
 				}
 				else {
 					// Prepare the error message
 					const char* errorMessage = "400 Bad Request: The request is malformed or contains invalid data.";
 					sendHttpResponse(clientSocket, 400, "Bad Request", "text/plain", NULL, errorMessage);
 				}
-
-				
-
 			}
 			else {
 				sendHttpResponse(clientSocket, 501, "Not Implemented", "text/plain", NULL, NULL);
@@ -320,7 +284,6 @@ DWORD WINAPI handle_connection(LPVOID  lpParam) {
 		else {
 			printf("recv failed: %d\n", WSAGetLastError());
 			closesocket(clientSocket);
-			fclose(routes);
 			return NULL;
 		}
 	}
@@ -332,10 +295,9 @@ DWORD WINAPI handle_connection(LPVOID  lpParam) {
 
 		return NULL;
 	}
-	printf("Connection closed\n");
+	printf("Connection with %s:%d closed\n",clientIp,clientPort);
 	// close the socket
 	closesocket(clientSocket);
-	fclose(routes);
 	return NULL;
 }
 
@@ -350,6 +312,12 @@ scriptResponse handleRegisterPost(char* input) {
 	modifiableInput = strstr(input, "\r\n\r\n");// get to the end of the http header
 	modifiableInput = &modifiableInput[4];// exclude \r\n\r\n, and take just the body
 
+	if (modifiableInput == NULL) {
+		curResponse.status = 400;
+		curResponse.message = "invalid input";
+		return curResponse;
+	}
+
 	URLDecode(modifiableInput);
 
 	user newUser;
@@ -361,7 +329,7 @@ scriptResponse handleRegisterPost(char* input) {
 	char* email;
 	char* password;
 	int result;
-
+	
 	// Split the input string based on the '&' character to separete the input.
 	token = strtok_s(modifiableInput, "&", &next_token);
 	if (token == NULL) {
@@ -384,21 +352,29 @@ scriptResponse handleRegisterPost(char* input) {
 		return curResponse;
 	}
 	username = strtok_s(NULL, "=", &next_token2);
-	if (username==NULL || strlen(username)>MAX_NAME_LENGTH) {
+	if (username==NULL || strlen(username)>=MAX_NAME_LENGTH) {
 		curResponse.status = 400;
 		curResponse.message = "invalid username";
 		return curResponse;
 	}
-	strcpy_s(newUser.username, username);
-
+	
+	
+	strcpy_s(newUser.username,sizeof(newUser.username), username);
+	
 	token = strtok_s(NULL, "&", &next_token); // Get the next token
 	if (token == NULL) {
 		curResponse.status = 400;
 		curResponse.message = "invalid input";
 		return curResponse;
 	}
+	
 	// split the string based on the '=' character, to get the value.
 	email = _strdup(token);
+	if (email == NULL) {
+		curResponse.status = 400;
+		curResponse.message = "invalid email";
+		return curResponse;
+	}
 	email = strtok_s(email, "=", &next_token2);
 	if (email == NULL) {
 		curResponse.status = 400;
@@ -406,7 +382,7 @@ scriptResponse handleRegisterPost(char* input) {
 		return curResponse;
 	}
 	email = strtok_s(NULL, "=", &next_token2);
-	if (email == NULL || strlen(email) > MAX_EMAIL_LENGTH) {
+	if (email == NULL || strlen(email) >= MAX_EMAIL_LENGTH) {
 		curResponse.status = 400;
 		curResponse.message = "invalid email";
 		return curResponse;
@@ -421,6 +397,11 @@ scriptResponse handleRegisterPost(char* input) {
 	}
 	// split the string based on the '=' character, to get the value.
 	password = _strdup(token);
+	if (password == NULL) {
+		curResponse.status = 400;
+		curResponse.message = "invalid password";
+		return curResponse;
+	}
 	password = strtok_s(password, "=", &next_token2);
 	if (password == NULL) {
 		curResponse.status = 400;
@@ -428,7 +409,7 @@ scriptResponse handleRegisterPost(char* input) {
 		return curResponse;
 	}
 	password = strtok_s(NULL, "=", &next_token2);
-	if (password == NULL || strlen(password) > MAX_PASSWORD_LENGTH) {
+	if (password == NULL || strlen(password) >= MAX_PASSWORD_LENGTH) {
 		curResponse.status = 400;
 		curResponse.message = "invalid password";
 		return curResponse;
@@ -438,10 +419,7 @@ scriptResponse handleRegisterPost(char* input) {
 	//	assign a new cookie to the user	
 	generateCookie(newUser.cookie);
 	
-	WaitForSingleObject(writeAccess, INFINITE);// make writing to file thread safe
 	result=indexedInsertRecord(newUser);
-	ReleaseSemaphore(writeAccess, 1, NULL);
-
 	if (result==1) {
 		curResponse.status = 409;
 		curResponse.message = "account already exists";
@@ -453,6 +431,7 @@ scriptResponse handleRegisterPost(char* input) {
 	curResponse.message = "account created successfully";
 	return curResponse;
 }
+
 
 scriptResponse handleLoginPost(char* input) {
 	scriptResponse curResponse;
@@ -493,7 +472,7 @@ scriptResponse handleLoginPost(char* input) {
 		return curResponse;
 	}
 	email = strtok_s(NULL, "=", &next_token2);
-	if (email == NULL || strlen(email) > MAX_EMAIL_LENGTH) {
+	if (email == NULL || strlen(email) >= MAX_EMAIL_LENGTH) {
 		curResponse.status = 400;
 		curResponse.message = "invalid email";
 		return curResponse;
@@ -514,7 +493,7 @@ scriptResponse handleLoginPost(char* input) {
 		return curResponse;
 	}
 	password = strtok_s(NULL, "=", &next_token2);
-	if (password==NULL || strlen(password) > MAX_PASSWORD_LENGTH) {
+	if (password==NULL || strlen(password) >= MAX_PASSWORD_LENGTH) {
 		curResponse.status = 400;
 		curResponse.message = "invalid password";
 		return curResponse;
@@ -523,7 +502,6 @@ scriptResponse handleLoginPost(char* input) {
 
 	
 	result=loginAuthentication(email,password);
-	
 	if (result==1) {//login insuccessfull
 		curResponse.status = 401;
 		curResponse.message = "email not registered";
@@ -691,21 +669,18 @@ void sendHttpResponse(SOCKET clientSocket, const int statusCode, const char* sta
 		contentLength = (int)strlen(content);
 	}
 	if (cookie!=NULL) {
-		sprintf_s(response, sizeof(response), "HTTP/1.1 %d %s\r\nContent-Type: %s\r\nContent-Length: %lu\r\nSet-cookie: cookie=%s; Path=/;\r\n\r\n%s", statusCode, statusMessage, contentType, contentLength, cookie, content);
+		sprintf_s(response, sizeof(response), "HTTP/1.1 %d %s\r\nContent-Type: %s\r\nContent-Length: %lu\r\nSet-cookie: cookie=%s; Path=/; HttpOnly;\r\nX-XSS-Protection: 1; mode=block\r\n\r\n%s", statusCode, statusMessage, contentType, contentLength, cookie, content);
 
 	}
 	else {
-		sprintf_s(response, sizeof(response), "HTTP/1.1 %d %s\r\nContent-Type: %s\r\nContent-Length: %lu\r\n\r\n%s", statusCode, statusMessage, contentType, contentLength, content);
+		sprintf_s(response, sizeof(response), "HTTP/1.1 %d %s\r\nContent-Type: %s\r\nContent-Length: %lu\r\nX-XSS-Protection: 1; mode=block\r\n\r\n%s", statusCode, statusMessage, contentType, contentLength, content);
 
 	}
-
-
 	send(clientSocket, response, (int)strlen(response), 0);
 }
 
 // Function to read an html file and return its body.
 char* readHtmlFileBody(const char* filename) {
-
 	const char* fileExtension = strrchr(filename, '.');
 	if (strcmp(fileExtension,".html")!=0) {
 		return NULL; //not an html file
@@ -756,12 +731,9 @@ char* readHtmlFileBody(const char* filename) {
 		fclose(fp);
 		exit(1);
 	}
-
 	htmlContents[fileSize] = '\0';
 
-
 	// Extract the body
-	
 	// Find the opening <body> tag while allowing for attributes
 	char* bodyStart = strstr(htmlContents, "<body");
 	if (bodyStart == NULL) {
@@ -769,7 +741,6 @@ char* readHtmlFileBody(const char* filename) {
 		free(htmlContents);
 		return NULL;
 	}
-
 	// Find the closing > character after <body
 	char* bodyStartGt = strchr(bodyStart, '>');
 	if (bodyStartGt == NULL) {
@@ -890,8 +861,6 @@ void sendFile(SOCKET clientSocket, const char* filePath, const char* contentType
 		sendHttpResponse(clientSocket, 404, "Not Found", "text/plain", NULL, "File not found");
 		return;
 	}
-
-
 	// defining actual path
 	char actualPath[MAXPATHLENGTH];
 	strcpy_s(actualPath, MAXPATHLENGTH, WEBPATH);
@@ -908,7 +877,6 @@ void sendFile(SOCKET clientSocket, const char* filePath, const char* contentType
 	long fileSize = ftell(fp);
 	fseek(fp, 0, SEEK_SET);
 
-
 	// send http header
 	sprintf_s(header, "HTTP/1.1 200 OK\r\nContent-Type: %s\r\nContent-Length: %ld\r\n\r\n", contentType, fileSize);
 	send(clientSocket, header, (int)strlen(header), 0);
@@ -918,8 +886,6 @@ void sendFile(SOCKET clientSocket, const char* filePath, const char* contentType
 		send(clientSocket, sendbuf, (int)bytesRead, 0);
 	}
 
-	//printf("%s sent\n", filePath);
 	fclose(fp);
-
 	return;
 }

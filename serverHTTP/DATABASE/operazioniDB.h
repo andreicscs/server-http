@@ -2,8 +2,9 @@
 #include <string.h>
 #include <stdlib.h>
 #include <time.h>
+#include <Windows.h>
 
-#define MAX_NAME_LENGTH 30
+#define MAX_NAME_LENGTH 60
 #define MAX_EMAIL_LENGTH 320
 #define MAX_PASSWORD_LENGTH 128 
 #define MAX_COOKIE_LENGTH 30
@@ -37,6 +38,82 @@ FILE* fileIndice;
 FILE* fileArchivio;
 FILE* fileCookies;
 
+
+/*
+semaphores structure:
+    reader:
+	    acquire readersem
+	    release readersem
+	
+	
+	
+	    readercount++
+	    if(readercount==0)
+		    acquire writersem
+		
+	    --code
+	
+	    readercount--
+	    if readercount==0
+		    release writersem
+
+
+
+    writer
+	    acquire readersem
+	    acquire writersem
+	
+	    --code
+	
+	    release readersem
+	    release writersem
+
+*/
+
+HANDLE readSemaphore;
+HANDLE writeSemaphore;
+LONG readerCount = 0;
+
+
+void InitializeLibrary() {
+    readSemaphore = CreateSemaphore(NULL, 1, 1, NULL);
+    writeSemaphore = CreateSemaphore(NULL, 1, 1, NULL);
+}
+
+void CleanupLibrary() {
+    CloseHandle(readSemaphore);
+    CloseHandle(writeSemaphore);
+}
+
+void AcquireReadLock() {
+    WaitForSingleObject(readSemaphore, INFINITE);  // check if the writer is waiting
+
+
+    InterlockedIncrement(&readerCount);
+    if (readerCount == 1) {
+        WaitForSingleObject(writeSemaphore, INFINITE);  // Prevent writers
+    }
+
+    ReleaseSemaphore(readSemaphore, 1, NULL);   // allow writer to 'book' him self
+}
+
+void ReleaseReadLock() {
+    InterlockedDecrement(&readerCount);
+    if (readerCount == 0) {
+        ReleaseSemaphore(writeSemaphore, 1, NULL);   // allow writers
+    }
+}
+
+void AcquireWriteLock() {
+    WaitForSingleObject(readSemaphore, INFINITE);  // Wait for the turnstile
+
+    WaitForSingleObject(writeSemaphore, INFINITE);  // Prevent other writers
+}
+
+void ReleaseWriteLock() {
+    ReleaseSemaphore(readSemaphore, 1, NULL);    // Allow readers
+    ReleaseSemaphore(writeSemaphore, 1, NULL);   // Allow other writers
+}
 
 int indexedSearchRecordRecursive(char email[], FILE* fileIndice, int start, int end) {
     // Check if the search range is valid.
@@ -125,15 +202,19 @@ int cookieIndexedSearchRecord(char cookie[], FILE* fileCookies) {
 }
 
 int loginAuthentication(char email[], char password[]) {
+    AcquireReadLock();
     fopen_s(&fileArchivio,ARCHIVE_FILE, "ab+");
     if (fileArchivio == NULL) {
-        perror("Error opening fileArchivio");
+        perror("loginAuthentication: Error opening fileArchivio");
+        ReleaseReadLock();
         return 1;
     }
 
     fopen_s(&fileIndice,INDEX_FILE, "ab+");
     if (fileIndice == NULL) {
         perror("Error opening fileIndice");
+        ReleaseReadLock();
+        fclose(fileArchivio);
         return 1;
     }
 
@@ -145,6 +226,7 @@ int loginAuthentication(char email[], char password[]) {
     if (pos == -1) {
         fclose(fileArchivio);
         fclose(fileIndice);
+        ReleaseReadLock();
         return 1; //email non trovata
     }
 
@@ -154,11 +236,12 @@ int loginAuthentication(char email[], char password[]) {
     if (strcmp(curUser.email,email)==0&&strcmp(curUser.password,password)==0) {
         fclose(fileArchivio);
         fclose(fileIndice);
+        ReleaseReadLock();
         return 0; // login valido
     }else {
         fclose(fileArchivio);
         fclose(fileIndice);
-
+        ReleaseReadLock();
         return 2; // password non valida
     }
     
@@ -166,6 +249,7 @@ int loginAuthentication(char email[], char password[]) {
 
     fclose(fileArchivio);
     fclose(fileIndice);
+    ReleaseReadLock();
     return 3;
 }
 
@@ -188,22 +272,25 @@ void generateCookie(char cookie[]) {
 
 
 int indexedInsertRecord(user nuovoRecord) {
-
+    AcquireWriteLock();
     fopen_s(&fileIndice,INDEX_FILE, "ab+");
     if (fileIndice == NULL) {
         perror("Error opening fileIndice");
+        ReleaseWriteLock();
         exit(1);
     }
-
+    
     if (indexedSearchRecord(nuovoRecord.email, fileIndice) != -1) {
         fclose(fileIndice);
+        ReleaseWriteLock();
         return 1;  // Record with the same key already exists
     }
 
-
+    
     fopen_s(&fileArchivio,ARCHIVE_FILE, "ab+");
     if (fileArchivio == NULL) {
-        perror("Error opening fileArchivio");
+        perror("indexedInsertRecord: Error opening fileArchivio");
+        ReleaseWriteLock();
         exit(1);
     }
 
@@ -221,6 +308,7 @@ int indexedInsertRecord(user nuovoRecord) {
     pos = ftell(fileArchivio) / sizeof(user);// Get the position of the newly inserted record
     fwrite(&nuovoRecord, sizeof(user), 1, fileArchivio);// Insert the new record at the end of the archive
     fclose(fileArchivio);
+    
 
 
 
@@ -231,6 +319,7 @@ int indexedInsertRecord(user nuovoRecord) {
     fopen_s(&tempFile,"tempFile", "wb");
     if (tempFile == NULL) {
         perror("Error opening temporary file");
+        ReleaseWriteLock();
         exit(1);
     }
 
@@ -271,6 +360,7 @@ int indexedInsertRecord(user nuovoRecord) {
     remove(INDEX_FILE);      // Remove the original file
     renameReturn=rename("tempFile", INDEX_FILE);  // Rename the temporary file making the changes effective
     if (renameReturn!=0) {
+        ReleaseWriteLock();
         exit(3);//rename failed
     }
 
@@ -280,6 +370,7 @@ int indexedInsertRecord(user nuovoRecord) {
     fopen_s(&fileCookies,COOKIES_FILE, "ab+");
     if (fileCookies == NULL) {
         perror("Error opening fileCookies");
+        ReleaseWriteLock();
         exit(1);
     }
 
@@ -290,6 +381,7 @@ int indexedInsertRecord(user nuovoRecord) {
     fopen_s(&tempFile, "tempFile", "wb");
     if (tempFile == NULL) {
         perror("Error opening temporary file");
+        ReleaseWriteLock();
         exit(1);
     }
 
@@ -321,24 +413,29 @@ int indexedInsertRecord(user nuovoRecord) {
     remove(COOKIES_FILE);      // Remove the original file
     renameReturn=rename("tempFile", COOKIES_FILE);  // Rename the temporary file making the changes effective
     if (renameReturn != 0) {
+        ReleaseWriteLock();
         exit(3);//rename failed
     }
 
-
+    ReleaseWriteLock();
     return 0;  // Record inserted successfully
 }
 
 // function that returns an user based on his cookie, returns a NULL user if not found.
 user getUserByCookie(char cookie[]) {
+    AcquireReadLock();
     fopen_s(&fileArchivio,ARCHIVE_FILE, "rb");
     if (fileArchivio == NULL) {
-        perror("Error opening fileArchivio");
+        perror("getUserByCookie Error opening fileArchivio");
+        ReleaseReadLock();
         exit(1);
     }
 
     fopen_s(&fileCookies,COOKIES_FILE, "rb");
     if (fileCookies == NULL) {
         perror("Error opening fileCookies");
+        fclose(fileArchivio);
+        ReleaseReadLock();
         exit(1);
     }
 
@@ -349,6 +446,9 @@ user getUserByCookie(char cookie[]) {
     int pos;
     pos = cookieIndexedSearchRecord(cookie, fileCookies);
     if (pos == -1) {
+        ReleaseReadLock();
+        fclose(fileArchivio);
+        fclose(fileCookies);
         return requestedUser;//user not found
     }
 
@@ -359,20 +459,25 @@ user getUserByCookie(char cookie[]) {
 
     fclose(fileArchivio);
     fclose(fileCookies);
+    ReleaseReadLock();
     return requestedUser;
 }
 
 // function that returns an user based on his email, returns an initialized user if not found.
 user getUserByEmail(char email[]) {
+    AcquireReadLock();
     fopen_s(&fileArchivio,ARCHIVE_FILE, "rb");
     if (fileArchivio == NULL) {
-        perror("Error opening fileArchivio");
+        perror("getUserByEmail: Error opening fileArchivio");
+        ReleaseReadLock();
         exit(1);
     }
 
     fopen_s(&fileIndice,INDEX_FILE, "rb");
     if (fileIndice == NULL) {
         perror("Error opening fileIndice");
+        ReleaseReadLock();
+        fclose(fileArchivio);
         exit(1);
     }
 
@@ -381,6 +486,9 @@ user getUserByEmail(char email[]) {
     int pos;
     pos = indexedSearchRecord(email, fileIndice);
     if (pos==-1) {
+        ReleaseReadLock();
+        fclose(fileArchivio);
+        fclose(fileIndice);
         return requestedUser;// user not found
     }
 
@@ -391,6 +499,7 @@ user getUserByEmail(char email[]) {
 
     fclose(fileArchivio);
     fclose(fileIndice);
+    ReleaseReadLock();
     return requestedUser;
 }
 
