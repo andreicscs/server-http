@@ -30,8 +30,17 @@ typedef struct {
 	char* cookie;
 }scriptResponse;
 
+typedef struct {
+	char method[MAX_METHOD_LENGTH];
+	char path[MAX_PATH_LENGTH];
+	char *headers;
+	char *body;
+} HttpRequest;
+
 FILE* routes;
 
+HttpRequest parseHttpRequest(const char* rawRequest);
+void generateCookie(char cookie[]);
 scriptResponse handleUserDataPost(char* input);
 void replacePlaceholder(char** source, const char* placeholder, const char* replacement);
 char* readHtmlFileBody(const char* filename);
@@ -144,10 +153,11 @@ int main(int argc, char* argv[]) {
 	sockaddr_in addr;
 	int addrSize = sizeof(addr);
 	char clientIp[16];
-	clientSocket = INVALID_SOCKET;
 	int clientPort;
-	threadArgs args;
+	clientSocket = INVALID_SOCKET;
 	HANDLE hThread;
+	threadArgs args;
+	
 
 	while (1) {
 		printf("waiting for a connection...\n");
@@ -221,19 +231,35 @@ DWORD WINAPI handle_connection(LPVOID  lpParam) {
 	char* curRouteFile;
 	char* next_token = NULL;
 	int sent = 0;
+	char* headerValue;
+	int bodyLength = 0;
 
 	// Receive until the peer shuts down the connection
 	while (1) {
 		iResult = recv(clientSocket, recvbuf, recvbuflen-1, 0);
 		if (iResult > 0) {
 			recvbuf[iResult] = 0;// null terminate the received data. 
-			sscanf_s(recvbuf, "%9s %99s", method, (unsigned int)sizeof(method), path, (unsigned int)sizeof(path));
-			if (strcmp(method, "GET") == 0) {
+			HttpRequest parsedRecvbuf;
+			parsedRecvbuf=parseHttpRequest(recvbuf);
+
+			//get Content-Length: value from the request header
+			headerValue;
+			bodyLength=0;
+			headerValue = strstr(parsedRecvbuf.headers, "Content-Length:");// get to the end of the http header
+			if (headerValue != NULL) {
+				sscanf_s(headerValue, "Content-Length:%d", &bodyLength);
+				// check if Content-Length: and body length actually match
+				if ((int)strlen(parsedRecvbuf.body) != bodyLength) {
+					sendHttpResponse(clientSocket, 400, "Content Length mismatch", "text/plain", NULL, NULL);
+				}
+			}
+			
+			if (strcmp(parsedRecvbuf.method, "GET") == 0) {
 				fseek(routes, 0, SEEK_SET);
-				while (fscanf_s(routes, "%s", curRouteline, (unsigned int)sizeof(curRouteline)) == 1) {
+				while (fscanf_s(routes, "%s", curRouteline, (unsigned int)sizeof(curRouteline)) == 1) { // check if the requested file is in the routes config file, and send the corrisponding response
 					curRoutePath = strtok_s(curRouteline, "=", &next_token);
 					curRouteFile = strtok_s(NULL, "=", &next_token);
-					if (strcmp(curRoutePath,path)==0) {
+					if (strcmp(curRoutePath, parsedRecvbuf.path)==0) {
 						sendFile(clientSocket, curRouteFile, NULL);
 						sent = 1;
 						break;
@@ -243,16 +269,16 @@ DWORD WINAPI handle_connection(LPVOID  lpParam) {
 					sendHttpResponse(clientSocket, 404, "Not Found", "text/plain", NULL, "File not found");
 				}
 			}
-			else if (strcmp(method, "POST") == 0) {
-				if (strcmp(path, "/login") == 0) {
+			else if (strcmp(parsedRecvbuf.method, "POST") == 0) {
+				if (strcmp(parsedRecvbuf.path, "/login") == 0) {
 					response = handleLoginPost(recvbuf);
 					sendHttpResponse(clientSocket, response.status, response.message, "text/plain", response.cookie, response.body);
 				}
-				else if(strcmp(path, "/register") == 0){
+				else if(strcmp(parsedRecvbuf.path, "/register") == 0){
 					response = handleRegisterPost(recvbuf);
 					sendHttpResponse(clientSocket, response.status, response.message, "text/plain", response.cookie, response.body);	
 				}
-				else if (strcmp(path, "/userData") == 0) {	
+				else if (strcmp(parsedRecvbuf.path, "/userData") == 0) {
 					response = handleUserDataPost(recvbuf);
 					sendHttpResponse(clientSocket, response.status, response.message, "text/html", response.cookie, response.body);
 				}
@@ -301,6 +327,78 @@ DWORD WINAPI handle_connection(LPVOID  lpParam) {
 	return NULL;
 }
 
+char* strdup_n(const char* str, size_t max_length) {
+	// Find the actual length of the string (up to the maximum length)
+	size_t length = strnlen(str, max_length);
+	
+	// Allocate memory for the new string (including space for the null terminator)
+	char* new_str = (char*)malloc(length + 1);
+	// Copy the string content
+	if (new_str == NULL) {
+		return NULL;
+	}
+
+	
+	strncpy_s(new_str, length+1, str, length);
+	new_str[length] = '\0';  // Null-terminate the new string
+	
+	return new_str;
+}
+
+HttpRequest parseHttpRequest(const char* rawRequest) {
+	HttpRequest parsedHttpRequest;
+	int headersLength;
+	parsedHttpRequest.method[0] = NULL;
+	parsedHttpRequest.path[0] = NULL;
+	parsedHttpRequest.body = NULL;
+	parsedHttpRequest.headers = NULL;
+	
+	
+	if (rawRequest==NULL) {
+		return parsedHttpRequest;
+	}
+	sscanf_s(rawRequest, "%9s %99s", parsedHttpRequest.method, (unsigned int)sizeof(parsedHttpRequest.method), parsedHttpRequest.path, (unsigned int)sizeof(parsedHttpRequest.path));
+	
+	parsedHttpRequest.body = (char*)strstr(rawRequest, "\r\n\r\n");// get to the end of the http header
+	if (parsedHttpRequest.body == NULL) {
+		return parsedHttpRequest;
+	}
+	parsedHttpRequest.body = &parsedHttpRequest.body[4];// exclude \r\n\r\n, and take just the body
+
+
+	parsedHttpRequest.headers = (char*)strstr(rawRequest, "\r\n");// get to the start of the http header values
+	if (parsedHttpRequest.headers == NULL) {
+		return parsedHttpRequest;
+	}
+	parsedHttpRequest.headers = &parsedHttpRequest.headers[2];
+
+	headersLength  = (int)(parsedHttpRequest.body - parsedHttpRequest.headers);
+
+	//parsedHttpRequest.headers[headersLength] = 0; // can't be done because i would be modifying the actual rawRequest
+	parsedHttpRequest.headers = strdup_n(parsedHttpRequest.headers, headersLength-4); // strdup it up untile headerslength-\r\n\r\n chars
+	
+	return parsedHttpRequest;
+}
+
+
+
+void generateCookie(char cookie[]) {
+	// Seed the random number generator with the current time
+	srand((unsigned int)(time(NULL)));
+
+	static const char charset[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+	int i;
+
+	if (cookie) {
+		for (i = 0; i < MAX_COOKIE_LENGTH - 1; i++) {
+			int index = (int)(rand() % (sizeof(charset) - 1));
+			cookie[i] = charset[index];
+		}
+		cookie[i] = '\0'; // Null-terminate the string
+	}
+}
+
+
 scriptResponse handleRegisterPost(char* input) {
 	scriptResponse curResponse;
 	if (input == NULL) {
@@ -308,113 +406,40 @@ scriptResponse handleRegisterPost(char* input) {
 		curResponse.message = "bad request";
 		return curResponse;
 	}
-	char* modifiableInput;
-	modifiableInput = strstr(input, "\r\n\r\n");// get to the end of the http header
-	modifiableInput = &modifiableInput[4];// exclude \r\n\r\n, and take just the body
+	HttpRequest parsedInput;
 
-	if (modifiableInput == NULL) {
-		curResponse.status = 400;
-		curResponse.message = "invalid input";
-		return curResponse;
-	}
+	parsedInput = parseHttpRequest(input);
 
-	URLDecode(modifiableInput);
+	URLDecode(parsedInput.body);
 
 	user newUser;
 
 	char* next_token = NULL;
 	char* next_token2 = NULL;
-	char* token;
-	char* username;
-	char* email;
-	char* password;
+	char username[MAX_NAME_LENGTH];
+	char email[MAX_EMAIL_LENGTH];
+	char password[MAX_PASSWORD_LENGTH];
 	int result;
 	
-	// Split the input string based on the '&' character to separete the input.
-	token = strtok_s(modifiableInput, "&", &next_token);
-	if (token == NULL) {
-		curResponse.status = 400;
-		curResponse.message = "invalid input";
-		return curResponse;
-	}
-
-	// split the string based on the '=' character, to get the value.
-	username = _strdup(token);
-	if (username == NULL) {
+	sscanf_s(parsedInput.body, "username=%[^&]&email=%[^&]&password=%s",username, (unsigned int)sizeof(username), email, (unsigned int)sizeof(email), password, (unsigned int)sizeof(password));
+	if (username[0] == 0 || strlen(username) >= MAX_NAME_LENGTH || username == NULL) {
 		curResponse.status = 400;
 		curResponse.message = "invalid username";
 		return curResponse;
 	}
-	username = strtok_s(username, "=", &next_token2);
-	if (username == NULL) {
-		curResponse.status = 400;
-		curResponse.message = "invalid username";
-		return curResponse;
-	}
-	username = strtok_s(NULL, "=", &next_token2);
-	if (username==NULL || strlen(username)>=MAX_NAME_LENGTH) {
-		curResponse.status = 400;
-		curResponse.message = "invalid username";
-		return curResponse;
-	}
-	
-	
-	strcpy_s(newUser.username,sizeof(newUser.username), username);
-	
-	token = strtok_s(NULL, "&", &next_token); // Get the next token
-	if (token == NULL) {
-		curResponse.status = 400;
-		curResponse.message = "invalid input";
-		return curResponse;
-	}
-	
-	// split the string based on the '=' character, to get the value.
-	email = _strdup(token);
-	if (email == NULL) {
+	if (email[0] == 0 || strlen(email) >= MAX_EMAIL_LENGTH || email == NULL) {
 		curResponse.status = 400;
 		curResponse.message = "invalid email";
 		return curResponse;
 	}
-	email = strtok_s(email, "=", &next_token2);
-	if (email == NULL) {
-		curResponse.status = 400;
-		curResponse.message = "invalid email";
-		return curResponse;
-	}
-	email = strtok_s(NULL, "=", &next_token2);
-	if (email == NULL || strlen(email) >= MAX_EMAIL_LENGTH) {
-		curResponse.status = 400;
-		curResponse.message = "invalid email";
-		return curResponse;
-	}
-	strcpy_s(newUser.email,email);
-
-	token = strtok_s(NULL, "&", &next_token); // Get the next token
-	if (token == NULL) {
-		curResponse.status = 400;
-		curResponse.message = "invalid input";
-		return curResponse;
-	}
-	// split the string based on the '=' character, to get the value.
-	password = _strdup(token);
-	if (password == NULL) {
+	if (password[0] == 0 || strlen(password) >= MAX_PASSWORD_LENGTH || password == NULL) {
 		curResponse.status = 400;
 		curResponse.message = "invalid password";
 		return curResponse;
 	}
-	password = strtok_s(password, "=", &next_token2);
-	if (password == NULL) {
-		curResponse.status = 400;
-		curResponse.message = "invalid password";
-		return curResponse;
-	}
-	password = strtok_s(NULL, "=", &next_token2);
-	if (password == NULL || strlen(password) >= MAX_PASSWORD_LENGTH) {
-		curResponse.status = 400;
-		curResponse.message = "invalid password";
-		return curResponse;
-	}
-	strcpy_s(newUser.password, password);
+	strcpy_s(newUser.username, sizeof(newUser.username), username);
+	strcpy_s(newUser.email, sizeof(newUser.email), email);
+	strcpy_s(newUser.password, sizeof(newUser.password), password);
 
 	//	assign a new cookie to the user	
 	generateCookie(newUser.cookie);
@@ -440,66 +465,32 @@ scriptResponse handleLoginPost(char* input) {
 		curResponse.message = "bad request";
 		return curResponse;
 	}
-	char* modifiableInput;
-	modifiableInput = strstr(input, "\r\n\r\n");// get to the end of the http header
-	modifiableInput = &modifiableInput[4];// exclude \r\n\r\n, and take just the body
+	HttpRequest parsedInput;
+
+	parsedInput=parseHttpRequest(input);
 	
+	char* body = _strdup(parsedInput.body);
 
-	URLDecode(modifiableInput);
-
+	URLDecode(body);
 
 	user curUser;
-	char* token;
 	char* next_token = NULL;
 	char* next_token2 = NULL;
-	char* email;
-	char* password;
+	char email[MAX_EMAIL_LENGTH];
+	char password[MAX_PASSWORD_LENGTH];
 	int result;
-
-	// Split the input string based on the '&' character to separete the input.
-	token = strtok_s(modifiableInput, "&", &next_token);
-	if (token == NULL) {
-		curResponse.status = 400;
-		curResponse.message = "invalid input";
-		return curResponse;
-	}
-	// split the string based on the '=' character, to get the value.
-	email = _strdup(token);
-	email = strtok_s(email, "=", &next_token2);
-	if (email == NULL) {
+	
+	sscanf_s(body, "email=%[^&]&password=%s", email, (unsigned int)sizeof(email), password, (unsigned int)sizeof(password));
+	if (email[0] == 0 || strlen(email) >= MAX_EMAIL_LENGTH || email==NULL) {
 		curResponse.status = 400;
 		curResponse.message = "invalid email";
 		return curResponse;
 	}
-	email = strtok_s(NULL, "=", &next_token2);
-	if (email == NULL || strlen(email) >= MAX_EMAIL_LENGTH) {
-		curResponse.status = 400;
-		curResponse.message = "invalid email";
-		return curResponse;
-	}
-
-	token = strtok_s(NULL, "&", &next_token); // Get the next token
-	if (token == NULL) {
-		curResponse.status = 400;
-		curResponse.message = "invalid input";
-		return curResponse;
-	}
-	// split the string based on the '=' character, to get the value.
-	password = _strdup(token);
-	password = strtok_s(password, "=", &next_token2);
-	if (password == NULL) {
+	if (password[0] == 0 || strlen(password) >= MAX_PASSWORD_LENGTH || password == NULL) {
 		curResponse.status = 400;
 		curResponse.message = "invalid password";
 		return curResponse;
 	}
-	password = strtok_s(NULL, "=", &next_token2);
-	if (password==NULL || strlen(password) >= MAX_PASSWORD_LENGTH) {
-		curResponse.status = 400;
-		curResponse.message = "invalid password";
-		return curResponse;
-	}
-
-
 	
 	result=loginAuthentication(email,password);
 	if (result==1) {//login insuccessfull
@@ -512,8 +503,6 @@ scriptResponse handleLoginPost(char* input) {
 		curResponse.message = "wrong password";
 		return curResponse;
 	}
-
-
 
 	curUser=getUserByEmail(email);
 	curResponse.cookie = _strdup(curUser.cookie);
@@ -530,21 +519,29 @@ scriptResponse handleUserDataPost(char* input) {
 		curResponse.message = "bad request";
 		return curResponse;
 	}
-	
+	HttpRequest parsedInput;
 
-	char* modifiableInput=_strdup(input);
+	parsedInput = parseHttpRequest(input);
 
-	char* cookie;
+	char* headerValue;
+	char cookie[MAX_COOKIE_LENGTH];
 	char* html;
 
-	cookie = strstr(input, "cookie=");// get to the cookie value in the header
-	if (cookie==NULL) {
+	
+	headerValue = strstr(parsedInput.headers, "Cookie:");// get to the cookie value in the header
+	if (headerValue ==NULL) {
 		curResponse.status = 422;
 		curResponse.message = "invalid cookie";
 		return curResponse;
 	}
-	cookie = &cookie[7];// skip cookie=
-	cookie[MAX_COOKIE_LENGTH-1] = '\0';// trunk the rest of the string
+	headerValue = &headerValue[8];// skip 'cookie= '
+
+	sscanf_s(headerValue, "cookie=%s", cookie, MAX_COOKIE_LENGTH);
+	if (cookie[0] == 0) {
+		curResponse.status = 422;
+		curResponse.message = "invalid cookie";
+		return curResponse;
+	}
 	
 	curUser = getUserByCookie(cookie);
 	
@@ -687,7 +684,7 @@ char* readHtmlFileBody(const char* filename) {
 	}
 
 	// Define the actual path
-	char actualPath[MAXPATHLENGTH];
+	char actualPath[MAX_PATH_LENGTH];
 	strcpy_s(actualPath, WEBPATH);
 	strcat_s(actualPath, sizeof(actualPath), filename);
 
@@ -790,9 +787,9 @@ char* readHtmlFile(const char* filename) {
 		return NULL; //not an html file
 	}
 	// defining actual path
-	char actualPath[MAXPATHLENGTH];
-	strcpy_s(actualPath, MAXPATHLENGTH, WEBPATH);
-	strcat_s(actualPath, MAXPATHLENGTH, filename);
+	char actualPath[MAX_PATH_LENGTH];
+	strcpy_s(actualPath, MAX_PATH_LENGTH, WEBPATH);
+	strcat_s(actualPath, MAX_PATH_LENGTH, filename);
 	FILE* fp;
 	fopen_s(&fp, actualPath, "rb");
 	if (fp == NULL) {
@@ -862,9 +859,9 @@ void sendFile(SOCKET clientSocket, const char* filePath, const char* contentType
 		return;
 	}
 	// defining actual path
-	char actualPath[MAXPATHLENGTH];
-	strcpy_s(actualPath, MAXPATHLENGTH, WEBPATH);
-	strcat_s(actualPath, MAXPATHLENGTH, filePath);
+	char actualPath[MAX_PATH_LENGTH];
+	strcpy_s(actualPath, MAX_PATH_LENGTH, WEBPATH);
+	strcat_s(actualPath, MAX_PATH_LENGTH, filePath);
 
 	fopen_s(&fp, actualPath, "rb");
 	if (fp == NULL) {

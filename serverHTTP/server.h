@@ -2,7 +2,10 @@
 #define DEFAULT_BUFLEN 5000
 #define WEBPATH "../web"
 #define WEBROUTES "../web/routesConfig.txt"
-#define MAXPATHLENGTH 100
+#define MAX_PATH_LENGTH 100
+#define MAX_METHOD_LENGTH 10
+
+
 
 #include "../DATABASE/operazioniDB.h"
 

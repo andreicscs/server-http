@@ -9,7 +9,7 @@
 #define MAX_PASSWORD_LENGTH 128 
 #define MAX_COOKIE_LENGTH 30
 #define MAX_ALLOWED_FILE_SIZE 1048576
-
+#define MAX_CONCURRENT_READERS 300 // 512 limit for the number of files that can be open at any one time
 #define ARCHIVE_FILE "../DATABASE/Archivio.dat"
 #define INDEX_FILE "../DATABASE/Indice.dat"
 #define COOKIES_FILE "../DATABASE/IndiceCookies.dat"
@@ -43,16 +43,15 @@ FILE* fileCookies;
 semaphores structure:
     reader:
 	    acquire readersem
-	    release readersem
-	
-	
-	
+	    acquire readerSlot
 	    readercount++
 	    if(readercount==0)
-		    acquire writersem
-		
-	    --code
+	   	    acquire writersem
+		release readersem
+
+	    --critical section
 	
+        release readerSlot
 	    readercount--
 	    if readercount==0
 		    release writersem
@@ -63,7 +62,7 @@ semaphores structure:
 	    acquire readersem
 	    acquire writersem
 	
-	    --code
+	    --critical section
 	
 	    release readersem
 	    release writersem
@@ -71,13 +70,16 @@ semaphores structure:
 */
 
 HANDLE readSemaphore;
-HANDLE writeSemaphore;
+HANDLE readerSlot;
 LONG readerCount = 0;
+HANDLE writeSemaphore;
+
 
 
 void InitializeLibrary() {
     readSemaphore = CreateSemaphore(NULL, 1, 1, NULL);
     writeSemaphore = CreateSemaphore(NULL, 1, 1, NULL);
+    readerSlot = CreateSemaphore(NULL, 1, MAX_CONCURRENT_READERS, NULL);
 }
 
 void CleanupLibrary() {
@@ -88,9 +90,9 @@ void CleanupLibrary() {
 void AcquireReadLock() {
     WaitForSingleObject(readSemaphore, INFINITE);  // check if the writer is waiting
 
-
+    WaitForSingleObject(readerSlot, INFINITE); // wait for a reader slot
     InterlockedIncrement(&readerCount);
-    if (readerCount == 1) {
+    if (InterlockedCompareExchange(&readerCount, 0, 0) == 1) {// use interlocekd function to access variable's value
         WaitForSingleObject(writeSemaphore, INFINITE);  // Prevent writers
     }
 
@@ -98,8 +100,10 @@ void AcquireReadLock() {
 }
 
 void ReleaseReadLock() {
+    ReleaseSemaphore(readerSlot, 1, NULL);
     InterlockedDecrement(&readerCount);
-    if (readerCount == 0) {
+
+    if (InterlockedCompareExchange(&readerCount, 0,0) == 0) {// use interlocekd function to access variable's value
         ReleaseSemaphore(writeSemaphore, 1, NULL);   // allow writers
     }
 }
@@ -252,24 +256,6 @@ int loginAuthentication(char email[], char password[]) {
     ReleaseReadLock();
     return 3;
 }
-
-void generateCookie(char cookie[]) {
-    // Seed the random number generator with the current time
-    srand((unsigned int)(time(NULL)));
-
-    static const char charset[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-    int i;
-
-    if (cookie) {
-        for (i = 0; i < MAX_COOKIE_LENGTH - 1; i++) {
-            int index = (int)(rand() % (sizeof(charset) - 1));
-            cookie[i] = charset[index];
-        }
-        cookie[i] = '\0'; // Null-terminate the string
-    }
-}
-
-
 
 int indexedInsertRecord(user nuovoRecord) {
     AcquireWriteLock();
