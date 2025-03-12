@@ -1,4 +1,3 @@
 # server-http
-a simple archive and HTTP server developed completely from scratch. with a  basic website to showcase their functionalities.
-
+a simple http server + archive implementation, with a basic website to shocase their functionalities
 (visual studio solution)
