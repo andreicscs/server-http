@@ -1,0 +1,15 @@
+[
+  {
+    "Name": "New Profile",
+    "Projects": [
+      {
+        "Path": "DATABASE\\DATABASE.vcxproj",
+        "Action": "Start"
+      },
+      {
+        "Path": "WEBSERVER\\WEBSERVER.vcxproj",
+        "Action": "Start"
+      }
+    ]
+  }
+]
