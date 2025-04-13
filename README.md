@@ -56,9 +56,9 @@ typedef struct {
 - Windows SDK (latest)
 - C++ CMake tools for Windows (VS extension)
 ### 🔧 Building the Solution
-1. **Clone with submodules**:
+1. **Clone**:
    ```powershell
-   git clone --recursive https://github.com/your-repo/CWebServer.git
+   git clone --recursive https://github.com/andreicscs/server-http.git
    ```
 2. **Open in Visual Studio**:
   - Double-click CWebServer.sln
